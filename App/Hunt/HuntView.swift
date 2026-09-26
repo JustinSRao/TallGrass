@@ -73,6 +73,9 @@ struct HuntView: View {
                     .contentTransition(.numericText())
             }
         }
+        // Solo hunts start when the screen opens; a match has already set a
+        // shared start time, which start() leaves alone.
+        .onAppear { model.start() }
         .onReceive(clock) { _ in
             model.tick()
             if model.isOver, !finished, !showsResults { finish() }
