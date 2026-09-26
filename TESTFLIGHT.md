@@ -6,11 +6,11 @@ which never goes through GitHub or Apple. It's copied straight onto the phone.
 
 ## One-time setup
 
-1. **Private GitHub repo.** Keep it private. The code contains no game
-   assets, but a public Pokémon fan repo is a takedown magnet.
-   ```sh
-   gh repo create JustinSRao/TallGrass --private --source . --push
-   ```
+1. **GitHub repo** (done): `JustinSRao/TallGrass`, **public** so GitHub's Macs
+   are free (private repos bill macOS minutes). That makes it doubly important
+   that no game assets are ever committed; `.gitignore` backs this up. A public
+   Pokémon fan repo can still get a DMCA takedown. If that happens, make it
+   private again and pay for minutes.
 2. **Secrets.** Use the same App Store Connect API key as DeckMemo. GitHub
    won't show the old secret values, so paste them in again from the `.p8`
    file you downloaded:
@@ -38,9 +38,8 @@ gh run watch                        # optional: follow it
 ```
 Open TestFlight on the phone and install.
 
-CI (`Build & Test`) runs on pull requests or `gh workflow run "Build & Test"`.
-Private repos use paid macOS minutes (roughly 200 real minutes a month on
-the free plan), so it deliberately doesn't run on every push.
+CI (`Build & Test`) runs on every push to `main` and on pull requests. It's free
+because the repo is public.
 
 ## Installing the creature pack
 

@@ -3,12 +3,13 @@ name: Build & Test
 # Builds and tests on GitHub's Macs, so code written on Windows gets compiled
 # without a Mac. Ad-hoc signing, so no developer account is needed here.
 #
-# Private repos pay for macOS minutes (10x multiplier on the free plan's
-# 2,000 minutes, so ~200 real Mac minutes a month). To save them this runs
-# on pull requests and by hand, not on every push:
-#   gh workflow run "Build & Test"
+# The repo is public, so GitHub's Mac minutes are free. Runs on every push
+# to main, on pull requests, and by hand: gh workflow run "Build & Test"
 
 on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", "pipeline/**", "scripts/**"]
   pull_request:
     paths-ignore: ["**.md", "pipeline/**", "scripts/**"]
   workflow_dispatch:

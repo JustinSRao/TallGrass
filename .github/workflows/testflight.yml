@@ -5,6 +5,9 @@ name: TestFlight
 #
 #   gh workflow run TestFlight
 #
+# Secrets stay secret in a public repo: they're never passed to workflows
+# triggered from forks, and this workflow only runs by hand.
+#
 # Same three repository secrets as DeckMemo (the same App Store Connect API
 # key works for every app on the team; add them to this repo too):
 #   ASC_KEY_ID      the key's 10-character ID

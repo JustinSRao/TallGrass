@@ -145,5 +145,7 @@ M4 is the core of the game, but it's built on the M1/M3 pieces.
   this repo, in a TestFlight build, or anywhere public. `.gitignore` backs this
   up; `pipeline/config.toml` keeps outputs outside the repo.
 - TestFlight stays **internal-only** (you + your friend as team members).
-- The repo stays **private**.
+- The repo is **public** (for free Mac builds), so it must never contain game
+  assets, keys or anything from the dump. If it's ever taken down, make it
+  private and pay for minutes.
 - The Violet modding repo is only read from, never modified from here.
