@@ -89,53 +89,46 @@ and wall-clock `|t:|` lines are stripped.
 
 ## 3. Milestones
 
-| # | Milestone | Status | Done when |
-|---|---|---|---|
-| M0 | Project skeleton | ✅ this commit | XcodeGen project, Kit + tests, CI + TestFlight workflows, pipeline stages 1/2/3b/4, battle engine with determinism test |
-| M1 | **First TestFlight build** | ⏭ next | CI green; the app installs; the demo pack hunt works in a real room; CPU battle plays to the end |
-| M2 | **Real models** | ⏳ spike | 20 species convert to `.usdz` with textures and look right in AR (see Risks 1–3) |
-| M3 | Hunt polish | | throw gesture (swipe with arc), off-screen arrows / radar, catch animation, haptics, sound, results screen with rarity art |
-| M4 | **Two-phone match** | | lobby, shared seed, synced timer, team reveal, lockstep battle over MultipeerConnectivity, reconnect handling |
-| M5 | Battle presentation | | both creatures shown on a table in AR, HP bars, move animations (or model "attack" clips once animations work), battle log |
-| M6 | Extras | | alternate forms, items, Terastallization toggle, best-of-3, match history, in-app "Import Pack" from a zip |
+Status legend: ✅ built and passing CI (compiled + automated tests on GitHub's Macs)
+· 📱 needs a real-phone check (AR, camera, two phones can't run in CI).
 
-Order of work: **M1 first** (proves the whole Windows → GitHub → TestFlight →
-phone loop with zero asset risk), then the **M2 spike** in parallel with M3.
-M4 is the core of the game, but it's built on the M1/M3 pieces.
+| # | Milestone | Status | What exists |
+|---|---|---|---|
+| M0 | Project skeleton | ✅ | XcodeGen project, Kit + tests, CI + TestFlight workflows, pipeline, battle engine with determinism test |
+| M1 | First TestFlight build | ✅ | Build 1 uploaded and valid; internal group created with you in it |
+| M2 | Real models | ✅ 📱 | All 476 species: extract → decode textures → Blender import → bake colours → USDZ (+ shiny). Spot-checked renders; looks in AR need your eyes |
+| M3 | Hunt polish | ✅ 📱 | Swipe throw on an arc (aim + power), capture sequence, creatures face you, rarer ones wander, edge arrows, haptics, team strip |
+| M4 | Two-phone match | ✅ 📱 | MultipeerConnectivity lobby, host rules, synced countdown, live progress, reveal, lockstep battle (two simulated phones stay identical in CI), rematch / hunt again, disconnect handling |
+| M5 | Battle presentation | ✅ 📱 | 3D stage with both creatures, send-out / lunge / hit / faint animations, HP bars, status, readable log |
+| M6 | Extras | partial | Done: import pack from Files, remembered team, shiny models. Not done: alternate forms, held items, Terastallization, best-of-3, match history, real animations |
 
 ---
 
-## 4. Risks and open questions (found while setting this up)
+## 4. Findings and remaining risks
 
-1. **Model conversion (the big one).** Nothing turns `.trmdl/.trmsh/.trmbf/.trskl/.trmtr`
-   into `.usdz` yet, and no Blender importer is installed. Options, in order:
-   a. an existing community Trinity importer for Blender, used as an outside tool
-      (check its licence; don't copy its code), then Blender 5.2 → USDZ export headless;
-   b. our own Blender importer written from the format documentation: pkNX's
-      Legends: Arceus schemas (`FlatBuffers/Arceus/Schemas/Poke/Model/*.fbs`) cover
-      the same file family, and the Violet catalog layout was already mapped this way.
-   Spike goal: Pikachu + Pawmot + Fletchling textured in Blender, then as `.usdz`
-   in AR Quick Look on the phone.
-2. **Decompression failures.** Some files (e.g. Pawmot's `pm1027_00_00.trmsh`)
-   fail with `kraken-decompressor` 0.2.1. `extract_models.py --all` lists every
-   one. If the failures turn out to be widespread, look for a better Kraken
-   decoder (GPL is fine as a separate process, like the Violet repo does today).
-3. **Textures.** `.bntx` is Switch-tiled BC-compressed data and needs
-   deswizzling and decoding to PNG before USDZ. Part of the same spike.
-4. **Animations.** `.tranm` files aren't referenced by name from the model
-   files, so stage 2 doesn't find them yet. Each model has one `.tracn`
-   (animation container) that probably holds them by hash. Until solved, models
-   are static with a procedural bob/turn, which is fine for M1–M4.
-5. **Form mapping.** Game form indices don't always match Showdown's forme order
-   (game Pikachu form 1 ≠ "Pikachu-Original"). Only base forms (476 species)
-   ship until a mapping table is verified.
-6. **AR placement.** Spawns are placed relative to the starting pose and dropped
-   onto the nearest detected floor. Cramped rooms will put some inside walls;
-   M3 should clamp distance with scene reconstruction or raycasts.
-7. **JavaScriptCore start-up.** Parsing the 6 MB bundle takes some time on a
-   phone. Measure it in M1; if it's slow, create the context during the hunt.
-8. **Nothing has compiled yet.** All Swift here was written on Windows. Expect
-   a round of compiler fixes on the first CI run, same as DeckMemo.
+1. **Model conversion works.** The community importer
+   (ChicoEevee/Pokemon-Switch-Model-Importer-Blender, no licence, so run as a
+   local tool only, never copied) imports models into headless Blender. Two
+   traps were solved: its shader uses Eevee-only nodes that bake black in
+   Cycles (fixed by baking the base colour as emission), and materials live in
+   different UV tiles (fixed by shifting each material into 0..1 before baking).
+   Models come out Y-up, metres, feet at y=0, facing +Z.
+2. **Species numbering.** The model catalog uses the game's *internal* species
+   number, which differs from the dex number for 92 Gen 9 species (Pawmot is
+   dex 923 but internal 956). The index joins on the internal number.
+3. **Decompression.** ~50 files crash kraken-decompressor 0.2.1 (buffer
+   overrun). pyooz (GPL, separate process) decodes them; verified byte-identical
+   on files both handle.
+4. **Animations** are still not extracted: models are static with a procedural
+   bob, turn, wander and battle lunges. Real idle/attack clips would need the
+   .tracn/.tranm layout worked out plus armature export to USD.
+5. **Form mapping.** Only base forms ship (476 species) until game-form →
+   Showdown-forme mapping is verified.
+6. **AR placement** in cramped rooms can put a creature inside a wall. Worth
+   checking on the phone; a fix is clamping spawn distance with raycasts.
+7. **Real-device checks still needed:** AR placement and throwing feel,
+   two-phone connection, JavaScriptCore start-up time on an XS, memory with
+   many models on screen.
 
 ---
 

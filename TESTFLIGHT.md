@@ -11,24 +11,16 @@ which never goes through GitHub or Apple. It's copied straight onto the phone.
    that no game assets are ever committed; `.gitignore` backs this up. A public
    Pokémon fan repo can still get a DMCA takedown. If that happens, make it
    private again and pay for minutes.
-2. **Secrets.** Use the same App Store Connect API key as DeckMemo. GitHub
-   won't show the old secret values, so paste them in again from the `.p8`
-   file you downloaded:
-   ```sh
-   gh secret set ASC_KEY_ID      --repo JustinSRao/TallGrass
-   gh secret set ASC_ISSUER_ID   --repo JustinSRao/TallGrass
-   gh secret set ASC_KEY_P8      --repo JustinSRao/TallGrass < path/to/AuthKey_XXXXXXXXXX.p8
-   ```
-3. **App record.** At <https://appstoreconnect.apple.com>, go to Apps › **+ New App** and
-   pick iOS, name "TallGrass" (or anything unique), bundle ID
-   `com.justinsrao.tallgrass.TallGrass`, SKU `TALLGRASS-001`. The first
-   TestFlight run registers the bundle ID automatically if it doesn't exist yet.
-   Leave the listing empty, because this never goes to the App Store.
-4. **Testers: internal only.** In TestFlight › Internal Testing, add yourself.
-   For your friend, first invite them to your team (Users and Access › **+**,
-   role *Developer* or *Marketing*). Once they accept, add them to the internal group.
-   Internal builds skip Beta App Review. The workflow also sets
-   `testFlightInternalTestingOnly`, so a build can't be sent to external testers by mistake.
+2. **Secrets** (done): `ASC_KEY_ID`, `ASC_ISSUER_ID` and `ASC_KEY_P8`, the same
+   App Store Connect API key as DeckMemo.
+3. **App record** (done): "TallGrass", bundle ID `com.justinsrao.tallgrass.TallGrass`.
+4. **Testers: internal only.** The "Internal Testing" group gets every build
+   automatically, and you're in it. For your friend: invite them to your team
+   (App Store Connect › Users and Access › **+**, role *Developer* or *Marketing*).
+   Once they accept, add them to that group. Internal builds skip Beta App Review,
+   and the workflow sets `testFlightInternalTestingOnly`, so a build can't be sent
+   to external testers by mistake.
+5. **Phones:** iPhone XS / XR or newer, updated to iOS 18 or later.
 
 ## Every build
 
@@ -43,16 +35,14 @@ because the repo is public.
 
 ## Installing the creature pack
 
-Build it on the PC (see `pipeline/README.md`), then:
+Build it on the PC (`python pipeline\build_all.py`, see `pipeline/README.md`), then:
 
-- **Easiest:** zip `TallGrass.creaturepack` and put the zip in iCloud Drive
-  or OneDrive. On the phone, open the zip in the Files app to expand it, then move
-  the folder to **On My iPhone › TallGrass**.
-- **Cable:** in the Apple Devices app on Windows, go to your iPhone › Files › TallGrass
-  and drag the folder in.
+- **Easiest:** copy the `TallGrass.creaturepack` folder into iCloud Drive or
+  OneDrive. On the phone, open TallGrass › **Import Pack…** and pick that folder.
+- **Cable:** in the Apple Devices app on Windows, go to your iPhone › Files › TallGrass,
+  drag the folder in, then tap **Reload Pack** in the app.
 
-Then open TallGrass, go to Creature Pack, and tap **Reload Pack**. Without a pack the
-app uses a 6-species demo with coloured placeholder orbs.
+Without a pack the app uses a 6-species demo with coloured placeholder orbs.
 
 For two-player games your friend needs the pack on their phone too. That's
 your call: it's a copy of your game's assets, so give it only to them.
