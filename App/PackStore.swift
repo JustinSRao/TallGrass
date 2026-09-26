@@ -2,15 +2,19 @@ import Foundation
 import Observation
 import TallGrassKit
 
-/// Finds the creature pack the user copied into the app's Documents folder
-/// (Files app › On My iPhone › TallGrass, or Finder / Apple Devices on a
-/// computer). Falls back to the small built-in demo pack, which has no 3D
-/// models, so the app always works.
+/// Finds the creature pack in the app's Documents folder. It gets there by
+/// "Import Pack…" (a folder picked in the Files app, e.g. from iCloud Drive or
+/// OneDrive), or by copying it in with Finder / Apple Devices. Falls back to
+/// the small built-in demo pack, which has no 3D models, so the app always works.
 @MainActor @Observable
 final class PackStore {
     private(set) var pack: CreaturePack = DemoPack.pack
     private(set) var packURL: URL?
     private(set) var loadError: String?
+    private(set) var modelCount = 0
+    private(set) var importing = false
+    private var byName: [String: CreatureSpecies] = [:]
+    private var modelFiles: Set<String> = []
 
     init() {
         reload()
@@ -25,6 +29,7 @@ final class PackStore {
     func reload() {
         let folder = Self.documentsPackURL
         let manifest = folder.appending(path: "manifest.json")
+        defer { index() }
         guard FileManager.default.fileExists(atPath: manifest.path(percentEncoded: false)) else {
             pack = DemoPack.pack
             packURL = nil
@@ -42,18 +47,64 @@ final class PackStore {
         }
     }
 
-    var modelCount: Int {
-        pack.species.filter { modelURL(for: $0) != nil }.count
+    private func index() {
+        byName = Dictionary(pack.species.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
+        modelFiles = []
+        if let packURL,
+           let names = try? FileManager.default.contentsOfDirectory(atPath: packURL.appending(path: "models").path(percentEncoded: false)) {
+            modelFiles = Set(names)
+        }
+        modelCount = pack.species.filter { $0.modelKey.map { modelFiles.contains("\($0).usdz") } ?? false }.count
     }
 
-    func modelURL(for species: CreatureSpecies) -> URL? {
+    /// The species' model, or its shiny variant when asked and available.
+    func modelURL(for species: CreatureSpecies, shiny: Bool = false) -> URL? {
         guard let key = species.modelKey, let packURL else { return nil }
-        let url = packURL.appending(path: "models/\(key).usdz")
-        return FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) ? url : nil
+        if shiny, modelFiles.contains("\(key)_rare.usdz") {
+            return packURL.appending(path: "models/\(key)_rare.usdz")
+        }
+        return modelFiles.contains("\(key).usdz") ? packURL.appending(path: "models/\(key).usdz") : nil
     }
 
     func species(id: String) -> CreatureSpecies? {
         pack.species.first { $0.id == id }
+    }
+
+    /// Looks up by display name, as the battle engine reports it ("Pawmot").
+    func species(named name: String) -> CreatureSpecies? {
+        byName[name]
+    }
+
+    /// Copies a picked `TallGrass.creaturepack` folder into Documents, replacing
+    /// any existing pack. The copy runs off the main thread (packs are large).
+    func importPack(from picked: URL) async {
+        importing = true
+        defer { importing = false }
+        let destination = Self.documentsPackURL
+        let result: Result<Void, Error> = await Task.detached(priority: .userInitiated) {
+            let scoped = picked.startAccessingSecurityScopedResource()
+            defer { if scoped { picked.stopAccessingSecurityScopedResource() } }
+            do {
+                let fm = FileManager.default
+                guard fm.fileExists(atPath: picked.appending(path: "manifest.json").path(percentEncoded: false)) else {
+                    throw CocoaError(.fileReadNoSuchFile, userInfo: [NSLocalizedDescriptionKey:
+                        "That folder has no manifest.json. Pick the TallGrass.creaturepack folder itself."])
+                }
+                let staging = destination.deletingLastPathComponent().appending(path: "incoming.creaturepack")
+                try? fm.removeItem(at: staging)
+                try fm.copyItem(at: picked, to: staging)
+                try? fm.removeItem(at: destination)
+                try fm.moveItem(at: staging, to: destination)
+                return .success(())
+            } catch {
+                return .failure(error)
+            }
+        }.value
+        if case .failure(let error) = result {
+            loadError = "Import failed: \(error.localizedDescription)"
+            return
+        }
+        reload()
     }
 }
 

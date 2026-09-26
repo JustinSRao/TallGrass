@@ -24,7 +24,10 @@ def main() -> None:
     from trinity_containers import FlatBuffer  # on sys.path via open_violet
 
     personal = PersonalTable.parse(read_file(PERSONAL_PATH))
-    by_species_form = {(e.detail.species_national, e.detail.form): e
+    # The catalog is keyed by the game's INTERNAL species number. For 92 Gen 9
+    # species that differs from the national dex number (Pawmot is national
+    # 923 but internal 956; internal 923 is Rabsca), so join on internal.
+    by_species_form = {(e.detail.species_internal, e.detail.form): e
                        for e in personal.entries}
     catalog = parse_catalog(read_file(CATALOG_PATH), FlatBuffer)
 
@@ -39,7 +42,8 @@ def main() -> None:
             continue
         base = c.folder + "/" + c.model_path.rsplit("/", 1)[1].removesuffix(".trmdl")
         found.append({
-            "national": c.species,
+            "national": entry.detail.species_national,
+            "internal": c.species,
             "form": c.form,
             "modelFolder": c.folder,
             "modelBase": base,

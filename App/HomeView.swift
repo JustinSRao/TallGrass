@@ -1,21 +1,33 @@
 import SwiftUI
 import TallGrassKit
+import UniformTypeIdentifiers
 
 struct HomeView: View {
     @Environment(PackStore.self) private var packs
+    @AppStorage("lastTeam") private var savedTeam = Data()
+    @AppStorage("playerName") private var playerName = ""
     @State private var hunt: HuntModel?
-    @State private var team: [BattleMon] = []
+    @State private var match: MatchCoordinator?
     @State private var battling = false
+    @State private var pickingPack = false
+
+    private var team: [BattleMon] {
+        (try? JSONDecoder().decode([BattleMon].self, from: savedTeam)) ?? []
+    }
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
                     Button {
+                        match = MatchCoordinator(pack: packs.pack, myName: playerName.isEmpty ? "Player" : playerName)
+                    } label: {
+                        Label("Play with a Friend", systemImage: "person.2.fill").font(.headline)
+                    }
+                    Button {
                         hunt = HuntModel(pack: packs.pack, seed: UInt64.random(in: .min ... .max), player: 0)
                     } label: {
-                        Label("Start a Hunt", systemImage: "camera.viewfinder")
-                            .font(.headline)
+                        Label("Solo Hunt", systemImage: "camera.viewfinder")
                     }
                     Button {
                         battling = true
@@ -24,40 +36,63 @@ struct HomeView: View {
                     }
                     .disabled(team.isEmpty)
                 } footer: {
-                    Text("Find up to 6 creatures in 3 minutes. Rarer ones spawn further away, leave sooner and are harder to catch.")
+                    Text("Find up to 6 creatures before time runs out. Rarer ones spawn further away, wander, leave sooner and are harder to catch. Then battle with real moves at level 50.")
                 }
 
                 if !team.isEmpty {
-                    Section("Your Team") {
-                        ForEach(team, id: \.self) { mon in
+                    Section("Your Last Team") {
+                        ForEach(Array(team.enumerated()), id: \.offset) { _, mon in
                             TeamRow(mon: mon)
                         }
                     }
                 }
 
-                Section("Creature Pack") {
+                Section {
                     LabeledContent("Pack", value: packs.isDemo ? "Built-in demo" : packs.pack.name)
                     LabeledContent("Species", value: "\(packs.pack.species.count)")
                     LabeledContent("3D models", value: "\(packs.modelCount)")
                     if let error = packs.loadError {
                         Text(error).foregroundStyle(.red).font(.footnote)
                     }
-                    Button("Reload Pack") { packs.reload() }
+                    if packs.importing {
+                        HStack { ProgressView(); Text("Importing… this can take a minute") }
+                    } else {
+                        Button("Import Pack…") { pickingPack = true }
+                        Button("Reload Pack") { packs.reload() }
+                    }
+                } header: {
+                    Text("Creature Pack")
+                } footer: {
+                    Text("Pick the TallGrass.creaturepack folder (for example from iCloud Drive or OneDrive). Or copy it into On My iPhone › TallGrass and tap Reload.")
                 }
             }
             .navigationTitle("TallGrass")
+            .fileImporter(isPresented: $pickingPack, allowedContentTypes: [.folder]) { result in
+                if case .success(let url) = result {
+                    Task { await packs.importPack(from: url) }
+                }
+            }
             .fullScreenCover(item: $hunt) { model in
                 HuntView(model: model) { caught in
-                    if !caught.isEmpty { team = caught }
+                    if !caught.isEmpty, let data = try? JSONEncoder().encode(caught) { savedTeam = data }
                     hunt = nil
                 }
                 .environment(packs)
             }
+            .fullScreenCover(item: $match) { coordinator in
+                MatchView(match: coordinator) { match = nil }
+                    .environment(packs)
+            }
             .fullScreenCover(isPresented: $battling) {
-                BattleView(playerTeam: team, pack: packs.pack) { battling = false }
+                CPUBattleScreen(team: team, pack: packs.pack) { battling = false }
+                    .environment(packs)
             }
         }
     }
+}
+
+extension MatchCoordinator: Identifiable {
+    nonisolated var id: ObjectIdentifier { ObjectIdentifier(self) }
 }
 
 struct TeamRow: View {

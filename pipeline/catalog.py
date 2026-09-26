@@ -11,7 +11,8 @@ from Legends: Arceus, which has an extra unused byte field):
                    (.trmmt), 3 ConfigPath (.trpokecfg), 4 Animations: [NamePath]
                    (one .tracn animation container), 5 Effects: [NamePath],
                    6 icon texture (.bntx)
-  SpeciesInfo: 0 Species: u16, 1 Form: u16, 2 Gender: u8 (1 = female model)
+  SpeciesInfo: 0 Species: u16 (INTERNAL number, not national dex),
+               1 Form: u16, 2 Gender: u8 (1 = female model)
   NamePath:    0 Name (usually absent), 1 Path
 """
 
