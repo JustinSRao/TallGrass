@@ -13,7 +13,7 @@ import TallGrassKit
 final class BattleController {
     enum Opponent {
         case cpu
-        case remote(send: (_ round: Int, _ side: String, _ choice: String) -> Void)
+        case remote(send: @MainActor (_ round: Int, _ side: String, _ choice: String) -> Void)
     }
 
     struct Option: Identifiable {

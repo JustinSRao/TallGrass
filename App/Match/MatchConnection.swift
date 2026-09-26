@@ -40,7 +40,7 @@ final class MatchConnection: NSObject {
     var role: Role = .host
 
     /// Called on the main actor for every message from the friend.
-    var onMessage: ((MatchMessage) -> Void)?
+    var onMessage: (@MainActor (MatchMessage) -> Void)?
 
     private let me = MCPeerID(displayName: UIDevice.current.name)
     private var session: MCSession?

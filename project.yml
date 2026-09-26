@@ -5,6 +5,8 @@ name: TallGrass
 options:
   bundleIdPrefix: com.justinsrao.tallgrass
   deploymentTarget:
+    # iOS 18 is the newest iOS the iPhone XS / XS Max / XR can run, and they
+    # are the oldest phones this game supports. Never raise this.
     iOS: "18.0"
   createIntermediateGroups: true
   groupSortPosition: top

@@ -58,6 +58,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("species", nargs="*", help="name:national or national (form 0)")
     ap.add_argument("--all", action="store_true")
+    ap.add_argument("--skip-existing", action="store_true", help="leave already-extracted folders alone")
     args = ap.parse_args()
 
     cfg = load_config()
@@ -72,6 +73,9 @@ def main() -> None:
 
     fs, read_file, _ = open_violet(cfg)
     for entry in chosen:
+        existing = cfg.raw_dir / f"{entry['national']:04d}_{entry['form']:02d}"
+        if args.skip_existing and any(existing.glob("*.trmdl")):
+            continue
         n, missing = extract(fs, read_file, entry, cfg.raw_dir)
         # "missing" are guesses at how a reference resolves; one of each pair
         # usually misses by design, so only report when nothing was written.

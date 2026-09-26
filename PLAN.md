@@ -141,6 +141,10 @@ M4 is the core of the game, but it's built on the M1/M3 pieces.
 
 ## 5. Ground rules
 
+- **Oldest supported phone: iPhone XS / XS Max / XR** (A12, iOS 18 max). The
+  deployment target stays at iOS 18.0 and no iOS 26-only API may be used
+  without an `if #available` fallback. The iPhone X (iOS 16 max) is not supported.
+
 - Game assets (anything from the dump, converted models, packs) never go in
   this repo, in a TestFlight build, or anywhere public. `.gitignore` backs this
   up; `pipeline/config.toml` keeps outputs outside the repo.
