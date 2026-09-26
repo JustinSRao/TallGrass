@@ -83,6 +83,11 @@ def convert_one(cfg, folder: Path, redo: bool) -> dict:
             result["rare" if rare else "normal"] = "exists"
             continue
         ok, info = run_blender(cfg, trmdl, out, rare, None if rare else previews / f"{key}.png")
+        if not ok and "failed to open blend file" in info:
+            # Several Blenders opening the importer's shader library at once
+            # occasionally collide; a retry is enough.
+            time.sleep(2)
+            ok, info = run_blender(cfg, trmdl, out, rare, None if rare else previews / f"{key}.png")
         result["rare" if rare else "normal"] = info
         if not ok:
             result["ok"] = False

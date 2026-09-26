@@ -123,9 +123,15 @@ Status legend: ✅ built and passing CI (compiled + automated tests on GitHub's 
    1.5 GB pack) in 20 minutes with 8 Blender processes. Known cosmetic issues:
    a few models carry a stray effect mesh (a thin bar beside Sylveon and
    Mimikyu), and some show their rest "T-pose" (Koraidon, Miraidon).
-4. **Animations** are still not extracted: models are static with a procedural
-   bob, turn, wander and battle lunges. Real idle/attack clips would need the
-   .tracn/.tranm layout worked out plus armature export to USD.
+4. **Animations work.** Clips aren't named anywhere readable, but archive
+   paths hash deterministically, so `discover_anims.py` finds them by guessing
+   `<model>_<number>_<action>.tranm` (ground 0xxxx, water 1xxxx, airborne 2xxxx
+   sets). Every species gets 11–13 clips (idle, walk, run, attack, special,
+   damage, faint, glad, notice, roar, eat, rest, sleep). They're laid end to end
+   on the NLA, exported as one UsdSkel timeline at 30 fps, and the app trims it
+   per clip (`AnimationView`). Trap: importing a clip at a non-zero offset
+   freezes it (keys move, strip range doesn't), so clips are imported at 0 and
+   the strip is moved. Shiny variants are baked textures swapped in at runtime.
 5. **Form mapping.** Only base forms ship (476 species) until game-form →
    Showdown-forme mapping is verified.
 6. **AR placement** in cramped rooms can put a creature inside a wall. Worth
