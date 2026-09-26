@@ -1,0 +1,85 @@
+# XcodeGen spec — run `xcodegen generate` to produce TallGrass.xcodeproj.
+# Same setup as DeckMemo: written on Windows, built and shipped from
+# GitHub's Macs (.github/workflows).
+name: TallGrass
+options:
+  bundleIdPrefix: com.justinsrao.tallgrass
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: "628KBJ4UMU"
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_STRICT_CONCURRENCY: minimal
+
+packages:
+  TallGrassKit:
+    path: Packages/TallGrassKit
+
+targets:
+  TallGrass:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        excludes:
+          - "Resources/battle-engine.js"
+      # Built by `npm run build` in BattleEngine/ (CI does this before
+      # generating the project). Listed separately so a missing bundle is an
+      # obvious build error rather than a silent runtime failure.
+      - path: App/Resources/battle-engine.js
+        buildPhase: resources
+    dependencies:
+      - package: TallGrassKit
+      - sdk: ARKit.framework
+      - sdk: RealityKit.framework
+      - sdk: JavaScriptCore.framework
+    settings:
+      base:
+        PRODUCT_NAME: TallGrass
+        PRODUCT_BUNDLE_IDENTIFIER: com.justinsrao.tallgrass.TallGrass
+        INFOPLIST_FILE: App/Resources/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+        ENABLE_PREVIEWS: YES
+      configs:
+        Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+
+  TallGrassTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: AppTests
+    dependencies:
+      - target: TallGrass
+      - package: TallGrassKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.justinsrao.tallgrass.TallGrassTests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  TallGrass:
+    build:
+      targets:
+        TallGrass: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - TallGrassTests
+        - package: TallGrassKit/TallGrassKitTests

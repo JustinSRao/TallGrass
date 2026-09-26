@@ -1,0 +1,34 @@
+# --- Game assets: NEVER commit -------------------------------------------
+# Creature packs, extracted/converted models and anything from the dump live
+# outside this repo (pipeline/config.toml work_dir). These are a backstop.
+*.creaturepack/
+*.usdz
+*.usdc
+*.trmdl
+*.trmsh
+*.trmbf
+*.trskl
+*.trmtr
+*.trmmt
+*.tranm
+*.bntx
+*.trpak
+*.trpfs
+*.trpfd
+pipeline/out/
+pipeline/config.toml
+
+# --- Build output ----------------------------------------------------------
+.DS_Store
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+build/
+.build/
+.swiftpm/
+Packages/TallGrassKit/.build/
+*.xcresult
+__pycache__/
+node_modules/
+# Built from BattleEngine/ by `npm run build` (CI builds it fresh).
+App/Resources/battle-engine.js

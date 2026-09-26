@@ -1,0 +1,59 @@
+name: Build & Test
+
+# Builds and tests on GitHub's Macs, so code written on Windows gets compiled
+# without a Mac. Ad-hoc signing, so no developer account is needed here.
+#
+# Private repos pay for macOS minutes (10x multiplier on the free plan's
+# 2,000 minutes, so ~200 real Mac minutes a month). To save them this runs
+# on pull requests and by hand, not on every push:
+#   gh workflow run "Build & Test"
+
+on:
+  pull_request:
+    paths-ignore: ["**.md", "pipeline/**", "scripts/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    env:
+      SIGN: CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Build and test the battle engine
+        working-directory: BattleEngine
+        run: |
+          npm ci
+          npm test
+
+      - name: TallGrassKit tests
+        run: swift test --package-path Packages/TallGrassKit
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the project
+        run: xcodegen generate
+
+      - name: Pick a simulator
+        id: sim
+        run: |
+          NAME="$(xcrun simctl list devices available | grep -E '^[[:space:]]+iPhone' | head -1 | sed -E 's/^[[:space:]]+//; s/ \(.*//')"
+          if [ -z "$NAME" ]; then echo "No iPhone simulator on the runner." >&2; exit 1; fi
+          echo "Using $NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test (iOS simulator)
+        run: |
+          xcodebuild -project TallGrass.xcodeproj -scheme TallGrass \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            $SIGN -only-testing:TallGrassTests test

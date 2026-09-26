@@ -1,0 +1,16 @@
+# Copy to config.toml (gitignored) and adjust. Every path here points at the
+# user's own Violet dump and the separate modding repo; nothing is downloaded.
+
+# The Violet modding repo whose audited readers we reuse (trinity + oodle +
+# personal table). Imported read-only; never modified from here.
+violet_project = 'C:\Games\Pokemon Scarlet-Violet\_project'
+
+# Extracted romfs "arc" folder containing data.trpfd + data.trpfs.
+violet_arc = 'C:\Games\Pokemon Scarlet-Violet\_work\romfs_violet\arc'
+
+# Where raw extracted files, converted models and the finished pack go.
+# Deliberately OUTSIDE this git repo: game assets must never be committed.
+work_dir = 'C:\Games\Pokemon Scarlet-Violet\_work\tallgrass'
+
+# Blender used headless for the model conversion stage.
+blender = 'C:\Program Files\Blender Foundation\Blender 5.2\blender.exe'

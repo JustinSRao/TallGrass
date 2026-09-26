@@ -1,0 +1,18 @@
+{
+  "name": "tallgrass-battle-engine",
+  "version": "1.0.0",
+  "description": "Showdown sim bundled for JavaScriptCore",
+  "scripts": {
+    "test": "node build.mjs && node test.mjs",
+    "build": "node build.mjs"
+  },
+  "license": "UNLICENSED",
+  "type": "module",
+  "dependencies": {
+    "@pkmn/sim": "0.10.11"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "private": true
+}
