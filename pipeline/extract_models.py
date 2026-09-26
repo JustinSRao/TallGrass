@@ -17,6 +17,7 @@ import json
 import re
 
 from common import load_config, open_violet
+from discover_anims import find_clips
 
 START_EXTS = (".trmdl", ".trskl", ".trmsh", ".trmbf", ".trmtr", ".trmmt",
               ".trpokecfg", ".tracn")
@@ -72,11 +73,28 @@ def main() -> None:
         ap.error("nothing selected (run index_species.py first?)")
 
     fs, read_file, _ = open_violet(cfg)
+    from trinity_hash import file_hash
+    hashes = set(fs.trpfd.file_hashes)
     for entry in chosen:
         existing = cfg.raw_dir / f"{entry['national']:04d}_{entry['form']:02d}"
-        if args.skip_existing and any(existing.glob("*.trmdl")):
+        if not (args.skip_existing and any(existing.glob("*.trmdl"))):
+            n, missing = extract(fs, read_file, entry, cfg.raw_dir)
+        else:
+            n, missing = len(list(existing.iterdir())), []
+        if args.skip_existing and (existing / "clips.json").exists():
             continue
-        n, missing = extract(fs, read_file, entry, cfg.raw_dir)
+        # Animation clips aren't referenced by any file we read, so they're
+        # found by name (discover_anims.find_clips) and saved with a role map.
+        clips = find_clips(entry["modelBase"], hashes, file_hash)
+        roles = {}
+        for role, path in clips.items():
+            try:
+                (existing / path.rsplit("/", 1)[1]).write_bytes(read_file(path))
+                roles[role] = path.rsplit("/", 1)[1]
+            except RuntimeError as err:
+                missing.append(f"{path} (decode failed: {err})")
+        (existing / "clips.json").write_text(json.dumps(roles, indent=1))
+        n += len(roles)
         # "missing" are guesses at how a reference resolves; one of each pair
         # usually misses by design, so only report when nothing was written.
         failed = [m for m in missing if "decode failed" in m]

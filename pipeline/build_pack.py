@@ -60,9 +60,12 @@ def main() -> None:
         if has_model:
             shutil.copy2(usdz, out / "models" / usdz.name)
             with_model += 1
-            shiny = models_in / f"{s['modelKey']}_rare.usdz"
-            if shiny.exists() and not args.no_shiny:
-                shutil.copy2(shiny, out / "models" / shiny.name)
+            meta = models_in / f"{s['modelKey']}.json"      # clips + mesh/material map
+            if meta.exists():
+                shutil.copy2(meta, out / "models" / meta.name)
+            shiny = models_in / f"{s['modelKey']}_rare_tex"  # textures swapped in at runtime
+            if shiny.is_dir() and not args.no_shiny:
+                shutil.copytree(shiny, out / "models" / f"{s['modelKey']}_rare")
         species.append({
             "id": s["id"], "name": s["name"], "national": s["national"],
             "types": s["types"], "abilities": s["abilities"],

@@ -37,16 +37,30 @@ def decode_textures(folder: Path) -> list[str]:
     return problems
 
 
+ROLE_ORDER = ["idle", "walk", "run", "attack", "special", "damage", "faint",
+              "glad", "notice", "roar", "eat", "rest", "sleep"]
+
+
 def run_blender(cfg, trmdl: Path, out: Path, rare: bool, preview: Path | None) -> tuple[bool, str]:
     cmd = [str(cfg.blender), "-b", "--factory-startup", "--python", str(HERE / "blender_convert.py"), "--",
            str(cfg.work_dir / "tools"), str(trmdl), str(out)]
     if rare:
-        cmd.append("--rare")
+        # Shiny: only the baked textures; the app swaps them onto the animated model.
+        cmd += ["--rare", "--bake-only"]
+    else:
+        roles_file = trmdl.parent / "clips.json"
+        if roles_file.exists():
+            roles = json.loads(roles_file.read_text())
+            anims = [{"role": r, "path": str(trmdl.parent / roles[r])} for r in ROLE_ORDER if r in roles]
+            anim_list = out.with_suffix(".anims.json")
+            anim_list.write_text(json.dumps(anims))
+            cmd += ["--anims", str(anim_list)]
     if preview:
         cmd += ["--render", str(preview)]
     proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900)
-    stats = next((line for line in proc.stdout.splitlines() if line.startswith("TG_STATS")), "")
-    ok = "TG_OK" in proc.stdout and out.exists()
+    stats = " ".join(line for line in proc.stdout.splitlines() if line.startswith(("TG_STATS", "TG_CLIPS")))
+    produced = out.with_name(out.stem + "_tex") if rare else out
+    ok = "TG_OK" in proc.stdout and produced.exists()
     if not ok:
         tail = [line for line in (proc.stdout + proc.stderr).splitlines() if line.strip()][-6:]
         return False, " | ".join(tail)[-600:]
@@ -64,7 +78,8 @@ def convert_one(cfg, folder: Path, redo: bool) -> dict:
         return result
     for rare in (False, True):
         out = models / f"{key}{'_rare' if rare else ''}.usdz"
-        if out.exists() and not redo:
+        done_marker = out.with_name(out.stem + "_tex") if rare else out.with_suffix(".json")
+        if done_marker.exists() and not redo:
             result["rare" if rare else "normal"] = "exists"
             continue
         ok, info = run_blender(cfg, trmdl, out, rare, None if rare else previews / f"{key}.png")

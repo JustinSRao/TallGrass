@@ -38,12 +38,31 @@ struct HuntARView: UIViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject {
+        /// What a creature is doing, like the overworld behaviour in the games.
+        private enum Activity {
+            case idle(until: Double)
+            case walking(to: SIMD3<Float>, running: Bool)
+            case doing(clip: String, until: Double)   // eat / rest / sleep / glad / roar
+            case noticing(until: Double)
+        }
+
         private struct Placed {
             let holder: Entity
             let spawn: Spawn
-            var base: SIMD3<Float>
-            let phase: Float
+            /// Where it spawned; it wanders around this spot.
+            let home: SIMD3<Float>
+            var position: SIMD3<Float>
+            var yaw: Float
+            var creature: CreatureModel?
+            var activity: Activity = .idle(until: 0)
+            var lastNoticed: Double = -100
             var busy = false
+
+            /// Eating, resting or asleep: easier to catch.
+            var isUnaware: Bool {
+                if case .doing(let clip, _) = activity { return ["eat", "rest", "sleep"].contains(clip) }
+                return false
+            }
         }
 
         private struct Flight {
@@ -112,17 +131,16 @@ struct HuntARView: UIViewRepresentable {
             }
 
             let cam = SIMD3(camera.transform.columns.3.x, camera.transform.columns.3.y, camera.transform.columns.3.z)
-            let t = Float(now)
-            for (_, p) in placed where !p.busy {
-                let amplitude = Self.wander(for: p.spawn.rarity)
-                var pos = p.base
-                if amplitude > 0 {
-                    pos.x += amplitude * sin(t * 0.35 + p.phase)
-                    pos.z += amplitude * cos(t * 0.27 + p.phase * 1.7)
-                }
-                pos.y += 0.012 * sin(t * 2.2 + p.phase) + (p.spawn.height > 0 ? 0.05 * sin(t * 1.3 + p.phase) : 0)
-                p.holder.position = pos
-                p.holder.orientation = CreatureEntity.yaw(from: pos, to: cam)
+            let dt = Float(min(0.1, lastFrame == 0 ? 0 : now - lastFrame))
+            lastFrame = now
+            for id in Array(placed.keys) {
+                guard var p = placed[id], !p.busy else { continue }
+                behave(&p, now: now, dt: dt, camera: cam)
+                var shown = p.position
+                if p.spawn.height > 0 { shown.y += 0.05 * sin(Float(now) * 1.3 + Float(id)) }   // flyers bob
+                p.holder.position = shown
+                p.holder.orientation = simd_quatf(angle: p.yaw, axis: [0, 1, 0])
+                placed[id] = p
             }
 
             if now - lastIndicatorUpdate > 0.2 {
@@ -131,14 +149,116 @@ struct HuntARView: UIViewRepresentable {
             }
         }
 
-        private static func wander(for rarity: Rarity) -> Float {
+        private var lastFrame: CFTimeInterval = 0
+
+        // MARK: Behaviour
+
+        /// How far a creature strays from where it spawned.
+        private static func roam(for rarity: Rarity) -> Float {
             switch rarity {
-            case .common: 0
-            case .uncommon: 0.08
-            case .rare: 0.18
-            case .epic: 0.3
-            case .legendary: 0.45
+            case .common: 0.8
+            case .uncommon: 1.0
+            case .rare: 1.3
+            case .epic: 1.6
+            case .legendary: 2.0
             }
+        }
+
+        /// Chance it runs off when you get close.
+        private static func skittishness(for rarity: Rarity) -> Double {
+            switch rarity {
+            case .common: 0.05
+            case .uncommon: 0.15
+            case .rare: 0.35
+            case .epic: 0.5
+            case .legendary: 0.65
+            }
+        }
+
+        private func behave(_ p: inout Placed, now: Double, dt: Float, camera: SIMD3<Float>) {
+            guard let creature = p.creature else { return }
+            let scale = max(0.5, creature.height / 0.5)
+            var toCamera = camera - p.position
+            toCamera.y = 0
+            let distance = simd_length(toCamera)
+
+            // Noticing the player, like wild creatures in the games.
+            if distance < 1.5, now - p.lastNoticed > 10 {
+                p.lastNoticed = now
+                if Double.random(in: 0..<1) < Self.skittishness(for: p.spawn.rarity) {
+                    let away = distance > 0.01 ? -toCamera / distance : SIMD3<Float>(0, 0, 1)
+                    var target = p.position + away * Self.roam(for: p.spawn.rarity) * 1.2
+                    target = clampToRoam(target, p)
+                    p.activity = .walking(to: target, running: true)
+                } else {
+                    p.activity = .noticing(until: now + max(1.2, creature.play("notice")))
+                }
+            }
+
+            switch p.activity {
+            case .idle(let until):
+                creature.play("idle", loop: true)
+                if now >= until { p.activity = nextActivity(for: p, creature: creature, now: now) }
+            case .walking(let target, let running):
+                creature.play(running ? "run" : "walk", loop: true)
+                var step = target - p.position
+                step.y = 0
+                let remaining = simd_length(step)
+                let speed = (running ? 0.9 : 0.28) * scale
+                if remaining < 0.04 {
+                    p.activity = .idle(until: now + Double.random(in: 1.5...4))
+                } else {
+                    let move = min(remaining, speed * dt)
+                    p.position += step / remaining * move
+                    turn(&p, toward: atan2(step.x, step.z), dt: dt)
+                }
+            case .doing(let clip, let until):
+                // Loops are re-asserted (a no-op while playing); one-shots were started once.
+                if ["eat", "rest", "sleep"].contains(clip) { creature.play(clip, loop: true) }
+                if now >= until { p.activity = .idle(until: now + 1) }
+            case .noticing(let until):
+                turn(&p, toward: atan2(toCamera.x, toCamera.z), dt: dt)
+                if now >= until { p.activity = .idle(until: now + Double.random(in: 1...2.5)) }
+            }
+        }
+
+        private func nextActivity(for p: Placed, creature: CreatureModel, now: Double) -> Activity {
+            let roll = Double.random(in: 0..<1)
+            switch roll {
+            case ..<0.55:
+                let angle = Float.random(in: 0..<(2 * .pi))
+                let radius = Float.random(in: 0.3...1) * Self.roam(for: p.spawn.rarity)
+                let target = p.home + SIMD3(sin(angle) * radius, 0, cos(angle) * radius)
+                return .walking(to: SIMD3(target.x, p.position.y, target.z), running: false)
+            case ..<0.67 where creature.has("eat"):
+                return .doing(clip: "eat", until: now + Double.random(in: 3...6))
+            case ..<0.75 where creature.has("rest"):
+                return .doing(clip: "rest", until: now + Double.random(in: 4...8))
+            case ..<0.80 where creature.has("sleep"):
+                return .doing(clip: "sleep", until: now + Double.random(in: 6...10))
+            case ..<0.88:
+                let clip = Bool.random() ? "glad" : "roar"
+                return .doing(clip: clip, until: now + max(1, creature.play(clip)))
+            default:
+                return .idle(until: now + Double.random(in: 2...4))
+            }
+        }
+
+        private func clampToRoam(_ target: SIMD3<Float>, _ p: Placed) -> SIMD3<Float> {
+            var offset = target - p.home
+            offset.y = 0
+            let limit = Self.roam(for: p.spawn.rarity) * 1.5
+            let length = simd_length(offset)
+            if length > limit { offset *= limit / length }
+            return SIMD3(p.home.x + offset.x, p.position.y, p.home.z + offset.z)
+        }
+
+        private func turn(_ p: inout Placed, toward target: Float, dt: Float) {
+            var delta = target - p.yaw
+            while delta > .pi { delta -= 2 * .pi }
+            while delta < -.pi { delta += 2 * .pi }
+            let maxTurn = 4 * dt
+            p.yaw += max(-maxTurn, min(maxTurn, delta))
         }
 
         private func place(_ spawn: Spawn, origin: simd_float4x4, in view: ARView) {
@@ -147,20 +267,27 @@ struct HuntARView: UIViewRepresentable {
             let base = position(for: spawn, origin: origin, in: view)
             holder.position = base
             root.addChild(holder)
-            placed[spawn.id] = Placed(holder: holder, spawn: spawn, base: base, phase: Float(spawn.id) * 1.37)
+            // Start facing the player, then go about its business.
+            let cam = view.session.currentFrame.map { SIMD3($0.camera.transform.columns.3.x, 0, $0.camera.transform.columns.3.z) } ?? base
+            placed[spawn.id] = Placed(holder: holder, spawn: spawn, home: base, position: base,
+                                      yaw: atan2(cam.x - base.x, cam.z - base.z))
 
             let species = model.species(for: spawn)
             Task { [weak self] in
                 guard let self else { return }
-                let creature = await CreatureEntity.make(for: species, name: species?.name ?? "?",
-                                                         shiny: spawn.isShiny, rarity: spawn.rarity, packs: self.packs)
+                let creature = await CreatureModel.load(for: species, name: species?.name ?? "?",
+                                                        shiny: spawn.isShiny, rarity: spawn.rarity, packs: self.packs)
                 guard self.placed[spawn.id]?.holder === holder else { return }
                 // Pop in. Animate the child: the holder's position is driven every frame.
-                creature.scale = SIMD3(repeating: 0.01)
-                holder.addChild(creature)
+                let content = creature.root
+                content.scale = SIMD3(repeating: 0.01)
+                holder.addChild(content)
                 holder.generateCollisionShapes(recursive: true)
-                creature.move(to: Transform(scale: .one, rotation: creature.orientation, translation: creature.position),
-                              relativeTo: holder, duration: 0.3, timingFunction: .easeOut)
+                content.move(to: Transform(scale: .one, rotation: content.orientation, translation: content.position),
+                             relativeTo: holder, duration: 0.3, timingFunction: .easeOut)
+                self.placed[spawn.id]?.creature = creature
+                self.placed[spawn.id]?.activity = .idle(until: CACurrentMediaTime() + Double.random(in: 0.5...2))
+                if spawn.rarity >= .epic { creature.play("roar") }
             }
         }
 
@@ -355,6 +482,8 @@ struct HuntARView: UIViewRepresentable {
 
         private func capture(id: Int, ball: Entity, quality: Double) {
             guard var p = placed[id] else { return }
+            // Sneaking up on one that's eating, resting or asleep pays off.
+            let quality = min(1, quality + (p.isUnaware ? 0.15 : 0))
             guard let outcome = model.resolveThrow(spawnID: id, quality: quality) else {
                 model.missed()
                 fadeOut(ball, after: 0.4)
@@ -409,6 +538,11 @@ struct HuntARView: UIViewRepresentable {
                     self.fadeOut(ball, after: 0)
                     try? await Task.sleep(for: .milliseconds(300))
                     self.placed[id]?.busy = false
+                    // It's awake and annoyed now.
+                    if let creature = self.placed[id]?.creature {
+                        self.placed[id]?.activity = .noticing(until: CACurrentMediaTime() + max(1, creature.play("roar")))
+                        self.placed[id]?.lastNoticed = CACurrentMediaTime()
+                    }
                 case .fled:
                     self.fadeOut(ball, after: 0)
                     var away = home

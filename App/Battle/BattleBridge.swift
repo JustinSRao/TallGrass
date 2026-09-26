@@ -55,6 +55,23 @@ final class BattleBridge {
         _ = try? call("end", [id])
     }
 
+    private var moveCache: [String: MoveInfo] = [:]
+
+    /// Type, category, power and accuracy of a move, from Showdown's data.
+    func moveInfo(_ name: String) -> MoveInfo? {
+        if let cached = moveCache[name] { return cached }
+        guard let json = try? call("moveInfo", [name]),
+              let info = try? JSONDecoder().decode(MoveInfo?.self, from: Data(json.utf8)) else { return nil }
+        moveCache[name] = info
+        return info
+    }
+
+    /// Type-chart multiplier of `move` against `species` (nil for status moves).
+    func effectiveness(move: String, against species: String) -> Double? {
+        guard let json = try? call("effectiveness", [move, species]) else { return nil }
+        return try? JSONDecoder().decode(Double?.self, from: Data(json.utf8))
+    }
+
     private func call(_ function: String, _ arguments: [Any]) throws -> String {
         lastException = nil
         let api = context.objectForKeyedSubscript("TallGrassBattle")
@@ -69,6 +86,30 @@ final class BattleBridge {
 }
 
 // MARK: - Engine messages (the parts the app uses)
+
+struct MoveInfo: Decodable, Equatable {
+    var name: String
+    var type: String
+    var category: String   // "Physical", "Special", "Status"
+    var basePower: Int
+    /// nil means the move never misses (Showdown sends `true`).
+    var accuracy: Int?
+    var pp: Int
+    var priority: Int
+
+    enum CodingKeys: String, CodingKey { case name, type, category, basePower, accuracy, pp, priority }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decode(String.self, forKey: .name)
+        type = try c.decode(String.self, forKey: .type)
+        category = try c.decode(String.self, forKey: .category)
+        basePower = try c.decodeIfPresent(Int.self, forKey: .basePower) ?? 0
+        accuracy = try? c.decode(Int.self, forKey: .accuracy)
+        pp = try c.decodeIfPresent(Int.self, forKey: .pp) ?? 0
+        priority = try c.decodeIfPresent(Int.self, forKey: .priority) ?? 0
+    }
+}
 
 struct BattleUpdate: Decodable {
     var id: Int?

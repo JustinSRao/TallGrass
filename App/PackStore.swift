@@ -49,6 +49,7 @@ final class PackStore {
 
     private func index() {
         byName = Dictionary(pack.species.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
+        metaCache = [:]
         modelFiles = []
         if let packURL,
            let names = try? FileManager.default.contentsOfDirectory(atPath: packURL.appending(path: "models").path(percentEncoded: false)) {
@@ -64,6 +65,25 @@ final class PackStore {
             return packURL.appending(path: "models/\(key)_rare.usdz")
         }
         return modelFiles.contains("\(key).usdz") ? packURL.appending(path: "models/\(key).usdz") : nil
+    }
+
+    @ObservationIgnored private var metaCache: [String: ModelMeta] = [:]
+
+    /// Clip ranges and material layout for a species' model, if the pack has them.
+    func modelMeta(for species: CreatureSpecies) -> ModelMeta? {
+        guard let key = species.modelKey, let packURL, modelFiles.contains("\(key).json") else { return nil }
+        if let cached = metaCache[key] { return cached }
+        let meta = try? JSONDecoder().decode(ModelMeta.self,
+                                             from: Data(contentsOf: packURL.appending(path: "models/\(key).json")))
+        metaCache[key] = meta
+        return meta
+    }
+
+    /// A shiny texture (`models/<key>_rare/<stem>.png`), if the pack has one.
+    func shinyTextureURL(for species: CreatureSpecies, stem: String) -> URL? {
+        guard let key = species.modelKey, let packURL, modelFiles.contains("\(key)_rare") else { return nil }
+        let url = packURL.appending(path: "models/\(key)_rare/\(stem).png")
+        return FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) ? url : nil
     }
 
     func species(id: String) -> CreatureSpecies? {

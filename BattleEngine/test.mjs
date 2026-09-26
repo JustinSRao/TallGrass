@@ -89,3 +89,12 @@ const bad = JSON.parse(engine.choose(JSON.parse(engine.start(JSON.stringify({
 }))).id, 'p1', 'move 9'));
 if (!bad.error) throw new Error('illegal choice was not reported');
 console.log('ok  illegal choice reported:', bad.error.slice(0, 60));
+
+const eff = (m, s) => JSON.parse(engine.effectiveness(m, s));
+if (eff('Thunderbolt', 'Gyarados') !== 4) throw new Error('Thunderbolt vs Gyarados should be 4x');
+if (eff('Earthquake', 'Dragonite') !== 0) throw new Error('Earthquake vs Dragonite should be 0x');
+if (eff('Flamethrower', 'Quaxly') !== 0.5) throw new Error('Flamethrower vs Quaxly should be 0.5x');
+if (eff('Swords Dance', 'Pikachu') !== null) throw new Error('status moves have no effectiveness');
+const info = JSON.parse(engine.moveInfo('Thunderbolt'));
+if (info.type !== 'Electric' || info.category !== 'Special' || info.basePower !== 90) throw new Error('moveInfo wrong');
+console.log('ok  type effectiveness + move info');

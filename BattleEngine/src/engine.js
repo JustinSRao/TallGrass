@@ -132,4 +132,15 @@ function moveInfo(name) {
   });
 }
 
-globalThis.TallGrassBattle = { start, choose, end, species, moveInfo, format: FORMAT };
+// Type-chart multiplier of a move against a species' types (0, 0.25 … 4).
+// A hint for the move buttons only: it ignores abilities, items and Tera.
+function effectiveness(moveName, speciesName) {
+  const dex = Dex.forGen(9);
+  const m = dex.moves.get(moveName);
+  const s = dex.species.get(speciesName);
+  if (!m.exists || !s.exists || m.category === 'Status') return JSON.stringify(null);
+  if (!dex.getImmunity(m.type, s.types)) return JSON.stringify(0);
+  return JSON.stringify(Math.pow(2, dex.getEffectiveness(m.type, s.types)));
+}
+
+globalThis.TallGrassBattle = { start, choose, end, species, moveInfo, effectiveness, format: FORMAT };
