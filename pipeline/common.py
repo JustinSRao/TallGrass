@@ -56,7 +56,36 @@ def open_violet(cfg: Config):
         sys.exit("Oodle decompressor missing: pip install -r "
                  f"{cfg.violet_project / 'requirements-oodle.txt'}")
     fs = TrinityFileSystem.open(cfg.violet_arc)
-    return fs, (lambda path: oodle.read_packed_file(fs, path)), PersonalTable
+
+    def read_file(path: str) -> bytes:
+        try:
+            return oodle.read_packed_file(fs, path)
+        except RuntimeError:
+            # kraken-decompressor 0.2.1 overruns its output buffer on some
+            # streams (~50 small model files). pyooz decodes them correctly.
+            return _read_with_pyooz(fs, path)
+
+    return fs, read_file, PersonalTable
+
+
+# pyooz is GPL-3.0+, so like the Violet repo's decoder it only ever runs in a
+# separate process and is never imported by this project's code.
+_POOZ_WORKER = ("import sys, ooz; n=int(sys.argv[1]);"
+                "sys.stdout.buffer.write(ooz.decompress(sys.stdin.buffer.read(), n))")
+
+
+def _read_with_pyooz(fs, path: str) -> bytes:
+    import subprocess
+    from trinity_hash import file_hash
+    from trinity_pack import Trpak
+
+    entry = Trpak.parse(fs.pack_of_file(path)).by_hash(file_hash(path))
+    proc = subprocess.run([sys.executable, "-c", _POOZ_WORKER, str(entry.decoded_size)],
+                          input=entry.payload, capture_output=True, timeout=300)
+    if proc.returncode != 0 or len(proc.stdout) != entry.decoded_size:
+        raise RuntimeError(f"both Kraken decoders failed on {path}: "
+                           f"{proc.stderr.decode('utf-8', 'replace')[-200:]}")
+    return proc.stdout
 
 
 def model_dir(model_id: int, form: int, variant: int = 0) -> str:

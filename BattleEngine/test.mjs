@@ -83,3 +83,9 @@ console.log(`ok  same seed -> identical ${a.log.length}-line log`);
 console.log(`ok  different seed -> ${a.log.join() === c.log.join() ? 'SAME (suspicious)' : 'different'} log`);
 const engine = freshEngine();
 console.log('ok  species lookup:', engine.species('Pawmot'));
+
+const bad = JSON.parse(engine.choose(JSON.parse(engine.start(JSON.stringify({
+  seed: [1, 1, 1, 1], p1: { name: 'You', team: teamA }, p2: { name: 'Friend', team: teamB },
+}))).id, 'p1', 'move 9'));
+if (!bad.error) throw new Error('illegal choice was not reported');
+console.log('ok  illegal choice reported:', bad.error.slice(0, 60));

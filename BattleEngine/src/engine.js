@@ -93,7 +93,14 @@ function start(json) {
 function choose(id, side, choice) {
   const entry = battles.get(id);
   if (!entry) throw new Error(`no battle ${id}`);
-  const ok = entry.battle.choose(side, choice);
+  // With strictChoices Showdown throws on an illegal choice; report it as data
+  // so a bad tap (or a desynced peer) never crashes the bridge.
+  let ok;
+  try {
+    ok = entry.battle.choose(side, choice);
+  } catch (err) {
+    return JSON.stringify({ error: String(err.message || err), ...drain(entry) });
+  }
   if (!ok) return JSON.stringify({ error: `rejected ${side}: ${choice}`, ...drain(entry) });
   return JSON.stringify(drain(entry));
 }
