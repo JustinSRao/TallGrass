@@ -119,6 +119,10 @@ Status legend: ✅ built and passing CI (compiled + automated tests on GitHub's 
 3. **Decompression.** ~50 files crash kraken-decompressor 0.2.1 (buffer
    overrun). pyooz (GPL, separate process) decodes them; verified byte-identical
    on files both handle.
+   First full run: 476/476 species converted (normal + shiny, 952 files,
+   1.5 GB pack) in 20 minutes with 8 Blender processes. Known cosmetic issues:
+   a few models carry a stray effect mesh (a thin bar beside Sylveon and
+   Mimikyu), and some show their rest "T-pose" (Koraidon, Miraidon).
 4. **Animations** are still not extracted: models are static with a procedural
    bob, turn, wander and battle lunges. Real idle/attack clips would need the
    .tracn/.tranm layout worked out plus armature export to USD.
